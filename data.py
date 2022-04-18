@@ -2,58 +2,74 @@ from typing import Dict, List, TypedDict
 from datetime import datetime
 import json
 import os.path
-import math
-import uuid
 
-# Part 1
+# Type Defs
 class Item(TypedDict):
     last_update: int
     expire_time: int
     name: str
-    id: str
+    id: int
 
 class DB(TypedDict):
-    items: Dict[str, Item]
+    items: Dict[int, Item]
 
-# Part 2
+# db setup stuff
 DB_PATH = 'db.json'
 
-db: DB = { 'items': {} }
-
+_db: DB = { 'items': {} }
 
 if os.path.exists(DB_PATH):
     print('before')
     with open(DB_PATH, 'r') as f:
-        db = json.loads(f.read())
+        _db = json.loads(f.read())
     print('after')
-    print(len(db['items']))
+    print(len(_db['items']))
 
-def save_db():
+def _save_db():
     with open(DB_PATH, 'w') as f:
-        f.write(json.dumps(db))
+        f.write(json.dumps(_db))
 
-# Part 3
-def add_item(expiration: int, name: str, save=True) -> str:
-    id = str(uuid.uuid1())
-    db['items'][id] = {
+# Exported functions for interacting with database
+
+def add_item(expiration: int, name: str, save=True) -> int:
+    """
+    expiration is a posix timestamp
+
+    id is created by hashing the expiration and name so
+    so duplicates with same name / expiration date cannot be added
+    (This simplifies qr reading, but may be a limitation)
+
+    Don't touch save, it was just there for testing
+    """
+    id = hash((expiration, name))
+    _db['items'][id] = {
         'id': id,
         'expire_time': expiration,
-        'last_update': math.floor(datetime.now().timestamp()),
+        'last_update': int(datetime.now().timestamp()),
         'name': name,
     }
-    if save: save_db()
+    if save: _save_db()
     return id
 
-def delete_item(id: str) -> bool:
-    present = id in db['items']
+def delete_item(id: int) -> bool:
+    """
+    id to delete an item should be found on the object
+    returned by fetch_display_items
+    """
+    present = id in _db['items']
     if present:
-        del db['items'][id]
-        save_db()
+        del _db['items'][id]
+        _save_db()
     return present
 
 
 def fetch_display_items() -> List[Item]:
-    items = list(db['items'].values())
+    """
+    returns up to 20 items which are going to 
+    expire the soonest
+    should come sorted correctly
+    """
+    items = list(_db['items'].values())
     items.sort(key=lambda item: item['expire_time'])
     return items[0:20]
 
